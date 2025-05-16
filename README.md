@@ -1,73 +1,102 @@
-# Welcome to your Lovable project
 
-## Project info
+# SafeKeep - Local Password Vault Viewer
 
-**URL**: https://lovable.dev/projects/60d810b3-2637-431c-8d7c-bca3764a41d1
+A simple, secure, client-side password vault viewer that works entirely in your browser.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- 🔒 **Entirely Client-Side**: No server communication or database needed
+- 🔑 **Local Encryption**: Works with encrypted .vault files
+- 👁️ **Password Viewing**: View your passwords securely
+- 🔍 **Search**: Easily search through your passwords
+- 📋 **Copy to Clipboard**: One-click copying of usernames and passwords
 
-**Use Lovable**
+## How to Use
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/60d810b3-2637-431c-8d7c-bca3764a41d1) and start prompting.
+1. **Upload your .vault file**: Click on the upload area or drag and drop your vault file
+2. **Enter your master password**: Use the same password that encrypted the vault
+3. **Browse your passwords**: All your passwords are displayed in a tabular format
+4. **Search**: Use the search box to quickly find specific passwords
+5. **Reveal/Hide Passwords**: Toggle password visibility as needed
+6. **Copy to Clipboard**: Click the copy button to copy usernames or passwords
 
-Changes made via Lovable will be committed automatically to this repo.
+## Generating a Vault File
 
-**Use your preferred IDE**
+Use the included node script to generate your own encrypted vault file:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+node src/scripts/generate-vault.js
 ```
 
-**Edit a file directly in GitHub**
+Follow the prompts to:
+1. Specify your JSON password file
+2. Enter a master password for encryption
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Vault File Format
 
-**Use GitHub Codespaces**
+The JSON format for the password file should be:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```json
+{
+  "metadata": {
+    "version": "1.0.0",
+    "createdAt": "2023-05-16T12:00:00.000Z",
+    "updatedAt": "2023-05-16T12:00:00.000Z",
+    "name": "My Passwords"
+  },
+  "entries": [
+    {
+      "site_name": "Example",
+      "site_url": "https://example.com",
+      "username": "user@example.com",
+      "password": "securepassword123",
+      "notes": "Optional notes"
+    }
+  ]
+}
+```
 
-## What technologies are used for this project?
+Or as a simple array:
 
-This project is built with:
+```json
+[
+  {
+    "site_name": "Example",
+    "site_url": "https://example.com",
+    "username": "user@example.com",
+    "password": "securepassword123"
+  }
+]
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Security
 
-## How can I deploy this project?
+- Your vault file is only decrypted in memory, in your browser
+- No data is ever sent to any server
+- All encryption/decryption happens locally using the CryptoJS library
+- Your master password is never stored
 
-Simply open [Lovable](https://lovable.dev/projects/60d810b3-2637-431c-8d7c-bca3764a41d1) and click on Share -> Publish.
+## Privacy
 
-## Can I connect a custom domain to my Lovable project?
+- No analytics, tracking or telemetry
+- No cookies or local storage used (except for temporary session data)
+- No network requests outside of loading the application itself
 
-Yes, you can!
+## Deployment
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+This application can be deployed as a static website on platforms like:
+- GitHub Pages
+- Netlify
+- Vercel
+- Any static web hosting
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Development
+
+1. Clone the repository
+2. Run `npm install`
+3. Run `npm run dev` to start the development server
+4. Run `npm run build` to build the application for production
+
+## License
+
+MIT License

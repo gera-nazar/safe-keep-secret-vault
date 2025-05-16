@@ -1,6 +1,6 @@
 
 import React from 'react';
-import LoginForm from '../components/LoginForm';
+import FileUpload from '../components/FileUpload';
 import PasswordVault from './PasswordVault';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock } from 'lucide-react';
@@ -32,10 +32,13 @@ const Index = () => {
               <Lock className="h-12 w-12 text-vault-accent mr-2" />
               <h1 className="text-3xl font-bold text-white">SafeKeep</h1>
             </div>
-            <p className="text-gray-300">Your secure password manager</p>
+            <p className="text-gray-300">Your secure password vault viewer</p>
+            <p className="text-gray-400 text-sm mt-2">Upload your .vault file to access your passwords</p>
           </div>
           
-          <LoginForm />
+          <div className="w-[350px]">
+            <FileUpload />
+          </div>
         </div>
       )}
     </div>

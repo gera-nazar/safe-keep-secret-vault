@@ -1,7 +1,13 @@
 
-import db from './databaseCore';
-export { encryptData, decryptData } from './encryption';
-export { masterExists, initializeMaster, verifyMaster } from './masterPassword';
-export { passwordsDB, type PasswordEntry } from './passwordOperations';
+import { encryptData, decryptData } from './encryption';
+export { encryptData, decryptData };
 
-export default db;
+// Re-export VaultFile types and functions
+export { 
+  type VaultFile, 
+  type PasswordEntry,
+  decryptVaultFile,
+  encryptVaultFile,
+  createEmptyVault,
+  searchVaultEntries
+} from './vaultFile';

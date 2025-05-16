@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { PasswordEntry } from '../services/database';
+import { PasswordEntry } from '../services/vaultFile';
 import { Card } from '@/components/ui/card';
 import {
   Table,
@@ -16,15 +16,11 @@ import { SearchBar } from './SearchBar';
 
 interface PasswordListProps {
   passwords: PasswordEntry[];
-  onEdit: (entry: PasswordEntry) => void;
-  onDelete: (id: number) => void;
   onSearch: (query: string) => void;
 }
 
 const PasswordList: React.FC<PasswordListProps> = ({
   passwords,
-  onEdit,
-  onDelete,
   onSearch
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,21 +52,18 @@ const PasswordList: React.FC<PasswordListProps> = ({
               <TableHead>Username</TableHead>
               <TableHead>Password</TableHead>
               <TableHead>Modified</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {passwords.length === 0 ? (
               <EmptyPasswordList searchQuery={searchQuery} />
             ) : (
-              passwords.map((entry) => (
+              passwords.map((entry, index) => (
                 <PasswordItem
-                  key={entry.id}
+                  key={entry.id || index}
                   entry={entry}
-                  isVisible={visiblePasswords[entry.id as number] || false}
+                  isVisible={visiblePasswords[entry.id as number || index] || false}
                   onToggleVisibility={togglePasswordVisibility}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
                 />
               ))
             )}

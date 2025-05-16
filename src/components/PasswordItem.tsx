@@ -1,16 +1,10 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import { PasswordEntry } from '../services/database';
+import { PasswordEntry } from '../services/vaultFile';
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { Eye, Copy, MoreVertical, Edit, Trash } from 'lucide-react';
+import { Eye, Copy } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 
@@ -18,16 +12,12 @@ interface PasswordItemProps {
   entry: PasswordEntry;
   isVisible: boolean;
   onToggleVisibility: (id: number) => void;
-  onEdit: (entry: PasswordEntry) => void;
-  onDelete: (id: number) => void;
 }
 
 export const PasswordItem: React.FC<PasswordItemProps> = ({
   entry,
   isVisible,
-  onToggleVisibility,
-  onEdit,
-  onDelete
+  onToggleVisibility
 }) => {
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -43,11 +33,8 @@ export const PasswordItem: React.FC<PasswordItemProps> = ({
     }
   };
 
-  const confirmDelete = (id: number, siteName: string) => {
-    if (confirm(`Are you sure you want to delete the entry for "${siteName}"?`)) {
-      onDelete(id);
-    }
-  };
+  // Use the entry id if available, otherwise use the index (which is passed as id)
+  const itemId = typeof entry.id === 'number' ? entry.id : 0;
 
   return (
     <TableRow>
@@ -83,7 +70,7 @@ export const PasswordItem: React.FC<PasswordItemProps> = ({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => onToggleVisibility(entry.id as number)}
+            onClick={() => onToggleVisibility(itemId)}
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
@@ -101,28 +88,6 @@ export const PasswordItem: React.FC<PasswordItemProps> = ({
         <Badge variant="outline">
           {formatDate(entry.modified_at)}
         </Badge>
-      </TableCell>
-      <TableCell className="text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(entry)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => confirmDelete(entry.id as number, entry.site_name)}
-              className="text-red-600"
-            >
-              <Trash className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </TableCell>
     </TableRow>
   );

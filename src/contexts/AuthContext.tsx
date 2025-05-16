@@ -1,16 +1,16 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { toast } from 'sonner';
-import { masterExists, verifyMaster, initializeMaster } from '../services/database';
+import { VaultFile } from '../services/vaultFile';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   masterKey: string | null;
   isLoading: boolean;
-  isInitialized: boolean;
-  login: (password: string) => Promise<boolean>;
+  vaultData: VaultFile | null;
+  vaultName: string | null;
+  loadVault: (vault: VaultFile, password: string, filename?: string) => Promise<boolean>;
   logout: () => void;
-  initialize: (password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,42 +22,35 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [masterKey, setMasterKey] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [vaultData, setVaultData] = useState<VaultFile | null>(null);
+  const [vaultName, setVaultName] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Check if master password is set up
-    const checkMaster = async () => {
-      try {
-        const initialized = await masterExists();
-        setIsInitialized(initialized);
-      } catch (error) {
-        console.error('Error checking master password:', error);
-        toast.error('Failed to check master password setup');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkMaster();
-  }, []);
-
-  const login = async (password: string): Promise<boolean> => {
+  const loadVault = async (vault: VaultFile, password: string, filename?: string): Promise<boolean> => {
     try {
-      const isValid = await verifyMaster(password);
-      
-      if (isValid) {
-        setIsAuthenticated(true);
-        setMasterKey(password); // Store the actual master key for encryption/decryption
-        toast.success('Login successful!');
-        return true;
-      } else {
-        toast.error('Invalid master password');
+      // Validate the vault structure
+      if (!vault.metadata || !Array.isArray(vault.entries)) {
+        toast.error('Invalid vault file structure');
         return false;
       }
+      
+      setVaultData(vault);
+      setMasterKey(password);
+      setIsAuthenticated(true);
+      
+      // Set the vault name from filename or metadata
+      if (filename) {
+        setVaultName(filename);
+      } else if (vault.metadata.name) {
+        setVaultName(vault.metadata.name);
+      } else {
+        setVaultName('Unnamed Vault');
+      }
+      
+      return true;
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Login failed');
+      console.error('Error loading vault:', error);
+      toast.error('Failed to load vault');
       return false;
     }
   };
@@ -65,30 +58,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setIsAuthenticated(false);
     setMasterKey(null);
+    setVaultData(null);
+    setVaultName(null);
     toast.info('Logged out successfully');
-  };
-
-  const initialize = async (password: string): Promise<boolean> => {
-    try {
-      await initializeMaster(password);
-      setIsInitialized(true);
-      toast.success('Master password created successfully');
-      return true;
-    } catch (error) {
-      console.error('Initialization error:', error);
-      toast.error('Failed to create master password');
-      return false;
-    }
   };
 
   const value = {
     isAuthenticated,
     masterKey,
     isLoading,
-    isInitialized,
-    login,
-    logout,
-    initialize
+    vaultData,
+    vaultName,
+    loadVault,
+    logout
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
