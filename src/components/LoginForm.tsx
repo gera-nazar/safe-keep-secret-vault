@@ -8,83 +8,14 @@ import { Lock } from 'lucide-react';
 
 const LoginForm: React.FC = () => {
   const [password, setPassword] = useState('');
-  const { login, isInitialized, initialize } = useAuth();
-  const [isCreating, setIsCreating] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { loadVault } = useAuth();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    login(password);
+    // Since we're now using vault files instead of login, this component might need 
+    // to be refactored or removed in favor of the FileUpload component
+    console.log("Login functionality replaced with vault file upload");
   };
-
-  const handleInitialize = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (newPassword !== confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-    
-    if (newPassword.length < 8) {
-      alert('Password must be at least 8 characters!');
-      return;
-    }
-    
-    if (initialize(newPassword)) {
-      setIsCreating(false);
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-  };
-
-  if (!isInitialized) {
-    return (
-      <Card className="w-[350px]">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-center gap-2 text-xl">
-            <Lock className="h-5 w-5" /> Create Master Password
-          </CardTitle>
-          <CardDescription className="text-center">
-            Set up your master password to protect your vault
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleInitialize}>
-          <CardContent>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Input
-                  id="new-password"
-                  type="password"
-                  placeholder="New Master Password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  placeholder="Confirm Master Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full bg-vault-accent hover:bg-vault-accent/90">
-              Create Master Password
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    );
-  }
 
   return (
     <Card className="w-[350px]">
