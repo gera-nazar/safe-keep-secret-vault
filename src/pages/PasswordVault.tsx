@@ -6,6 +6,7 @@ import { passwordsDB, PasswordEntry } from '../services/database';
 import VaultHeader from '../components/VaultHeader';
 import PasswordList from '../components/PasswordList';
 import PasswordForm from '../components/PasswordForm';
+import { Lock } from 'lucide-react'; // Import Lock from lucide-react
 
 const PasswordVault: React.FC = () => {
   const { masterKey } = useAuth();
@@ -18,18 +19,22 @@ const PasswordVault: React.FC = () => {
   
   // Load passwords
   useEffect(() => {
-    if (masterKey) {
-      try {
-        const allPasswords = passwordsDB.getAll(masterKey);
-        setPasswords(allPasswords);
-        setFilteredPasswords(allPasswords);
-      } catch (error) {
-        console.error('Error loading passwords:', error);
-        toast.error('Failed to load passwords');
-      } finally {
-        setIsLoading(false);
+    const loadPasswords = async () => {
+      if (masterKey) {
+        try {
+          const allPasswords = await passwordsDB.getAll(masterKey);
+          setPasswords(allPasswords);
+          setFilteredPasswords(allPasswords);
+        } catch (error) {
+          console.error('Error loading passwords:', error);
+          toast.error('Failed to load passwords');
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
+    };
+    
+    loadPasswords();
   }, [masterKey]);
   
   const handleAddNew = () => {
@@ -44,9 +49,10 @@ const PasswordVault: React.FC = () => {
     setFormOpen(true);
   };
   
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     try {
-      if (passwordsDB.delete(id)) {
+      const success = await passwordsDB.delete(id);
+      if (success) {
         setPasswords(prev => prev.filter(entry => entry.id !== id));
         setFilteredPasswords(prev => prev.filter(entry => entry.id !== id));
         toast.success('Password deleted successfully');
@@ -57,18 +63,19 @@ const PasswordVault: React.FC = () => {
     }
   };
   
-  const handleFormSubmit = (entry: PasswordEntry) => {
+  const handleFormSubmit = async (entry: PasswordEntry) => {
     if (!masterKey) return;
     
     try {
       if (editMode === 'add') {
-        const newId = passwordsDB.create(entry, masterKey);
+        const newId = await passwordsDB.create(entry, masterKey);
         const newEntry = { ...entry, id: newId };
         setPasswords(prev => [...prev, newEntry]);
         setFilteredPasswords(prev => [...prev, newEntry]);
         toast.success('Password added successfully');
       } else {
-        if (passwordsDB.update(entry, masterKey)) {
+        const success = await passwordsDB.update(entry, masterKey);
+        if (success) {
           setPasswords(prev => 
             prev.map(item => (item.id === entry.id ? entry : item))
           );
@@ -84,7 +91,7 @@ const PasswordVault: React.FC = () => {
     }
   };
   
-  const handleSearch = (query: string) => {
+  const handleSearch = async (query: string) => {
     if (!masterKey) return;
     
     if (!query.trim()) {
@@ -93,7 +100,7 @@ const PasswordVault: React.FC = () => {
     }
     
     try {
-      const results = passwordsDB.search(query, masterKey);
+      const results = await passwordsDB.search(query, masterKey);
       setFilteredPasswords(results);
     } catch (error) {
       console.error('Error searching passwords:', error);

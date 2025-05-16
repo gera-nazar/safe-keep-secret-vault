@@ -8,9 +8,9 @@ interface AuthContextType {
   masterKey: string | null;
   isLoading: boolean;
   isInitialized: boolean;
-  login: (password: string) => boolean;
+  login: (password: string) => Promise<boolean>;
   logout: () => void;
-  initialize: (password: string) => boolean;
+  initialize: (password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,20 +27,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Check if master password is set up
-    try {
-      const initialized = masterExists();
-      setIsInitialized(initialized);
-    } catch (error) {
-      console.error('Error checking master password:', error);
-      toast.error('Failed to check master password setup');
-    } finally {
-      setIsLoading(false);
-    }
+    const checkMaster = async () => {
+      try {
+        const initialized = await masterExists();
+        setIsInitialized(initialized);
+      } catch (error) {
+        console.error('Error checking master password:', error);
+        toast.error('Failed to check master password setup');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkMaster();
   }, []);
 
-  const login = (password: string): boolean => {
+  const login = async (password: string): Promise<boolean> => {
     try {
-      const isValid = verifyMaster(password);
+      const isValid = await verifyMaster(password);
       
       if (isValid) {
         setIsAuthenticated(true);
@@ -64,9 +68,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     toast.info('Logged out successfully');
   };
 
-  const initialize = (password: string): boolean => {
+  const initialize = async (password: string): Promise<boolean> => {
     try {
-      initializeMaster(password);
+      await initializeMaster(password);
       setIsInitialized(true);
       toast.success('Master password created successfully');
       return true;

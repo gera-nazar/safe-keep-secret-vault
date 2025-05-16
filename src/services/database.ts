@@ -1,41 +1,24 @@
 
-import Database from 'better-sqlite3';
 import CryptoJS from 'crypto-js';
-import fs from 'fs';
-import path from 'path';
 
-// Path to store the database in the user's home directory
-const userHome = process.env.HOME || process.env.USERPROFILE || '.';
-const DB_PATH = path.join(userHome, '.safekeep', 'vault.db');
-const MASTER_PATH = path.join(userHome, '.safekeep', 'master.json');
+// Mock database using IndexedDB for browser environment
+const DB_NAME = 'safekeepVault';
+const DB_VERSION = 1;
+const PASSWORDS_STORE = 'passwords';
+const SETTINGS_STORE = 'settings';
+const MASTER_KEY_SETTING = 'masterKey';
 
-// Ensure directory exists
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Interface for password entries
+export interface PasswordEntry {
+  id?: number;
+  site_url: string;
+  site_name: string;
+  username: string;
+  password: string; // Plain password (will be encrypted before storage)
+  created_at?: string;
+  modified_at?: string;
+  notes: string;
 }
-
-// Initialize database connection
-const db = new Database(DB_PATH);
-
-// Create tables if they don't exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    site_url TEXT,
-    site_name TEXT,
-    username TEXT,
-    password_encrypted TEXT,
-    created_at TEXT,
-    modified_at TEXT,
-    notes TEXT
-  );
-  
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-`);
 
 // Encryption/decryption functions
 export function encryptData(data: string, masterKey: string): string {
@@ -47,28 +30,95 @@ export function decryptData(encryptedData: string, masterKey: string): string {
   return bytes.toString(CryptoJS.enc.Utf8);
 }
 
-// Check if master password exists
-export function masterExists(): boolean {
-  return fs.existsSync(MASTER_PATH);
+// Open IndexedDB connection
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(new Error('Failed to open database'));
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // Create object stores
+      if (!db.objectStoreNames.contains(PASSWORDS_STORE)) {
+        const passwordsStore = db.createObjectStore(PASSWORDS_STORE, { keyPath: 'id', autoIncrement: true });
+        passwordsStore.createIndex('site_name', 'site_name', { unique: false });
+      }
+      
+      if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+        db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+  });
 }
 
-// Initialize master password (hash it and store it)
-export function initializeMaster(password: string): void {
+// Wrapper for database operations
+const executeTransaction = async <T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  callback: (store: IDBObjectStore) => IDBRequest<T>
+): Promise<T> => {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, mode);
+    const store = transaction.objectStore(storeName);
+    const request = callback(store);
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    
+    transaction.oncomplete = () => db.close();
+  });
+};
+
+// Master password operations
+export async function masterExists(): Promise<boolean> {
+  try {
+    const result = await executeTransaction<any>(
+      SETTINGS_STORE,
+      'readonly',
+      (store) => store.get(MASTER_KEY_SETTING)
+    );
+    return !!result;
+  } catch (error) {
+    console.error('Error checking master password:', error);
+    return false;
+  }
+}
+
+export async function initializeMaster(password: string): Promise<void> {
   const hashedPassword = CryptoJS.SHA256(password).toString();
   const salt = CryptoJS.lib.WordArray.random(128/8).toString();
   
   const masterData = {
-    hash: CryptoJS.PBKDF2(hashedPassword, salt, { keySize: 512/32, iterations: 1000 }).toString(),
+    key: MASTER_KEY_SETTING,
+    hash: CryptoJS.PBKDF2(hashedPassword, salt, { 
+      keySize: 512/32, 
+      iterations: 1000 
+    }).toString(),
     salt: salt
   };
   
-  fs.writeFileSync(MASTER_PATH, JSON.stringify(masterData), 'utf-8');
+  await executeTransaction(
+    SETTINGS_STORE,
+    'readwrite',
+    (store) => store.put(masterData)
+  );
 }
 
-// Verify master password
-export function verifyMaster(password: string): boolean {
+export async function verifyMaster(password: string): Promise<boolean> {
   try {
-    const masterData = JSON.parse(fs.readFileSync(MASTER_PATH, 'utf-8'));
+    const masterData = await executeTransaction<any>(
+      SETTINGS_STORE,
+      'readonly',
+      (store) => store.get(MASTER_KEY_SETTING)
+    );
+    
+    if (!masterData) return false;
+    
     const hashedPassword = CryptoJS.SHA256(password).toString();
     const hash = CryptoJS.PBKDF2(hashedPassword, masterData.salt, { 
       keySize: 512/32, 
@@ -82,47 +132,37 @@ export function verifyMaster(password: string): boolean {
   }
 }
 
-// Password entry type
-export interface PasswordEntry {
-  id?: number;
-  site_url: string;
-  site_name: string;
-  username: string;
-  password: string; // Plain password (will be encrypted before storage)
-  created_at?: string;
-  modified_at?: string;
-  notes: string;
-}
-
-// Database operations
+// Password database operations
 export const passwordsDB = {
   // Add new password entry
-  create: (entry: PasswordEntry, masterKey: string): number => {
+  create: async (entry: PasswordEntry, masterKey: string): Promise<number> => {
     const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      INSERT INTO passwords (site_url, site_name, username, password_encrypted, created_at, modified_at, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    
     const encryptedPassword = encryptData(entry.password, masterKey);
     
-    const result = stmt.run(
-      entry.site_url,
-      entry.site_name,
-      entry.username,
-      encryptedPassword,
-      now,
-      now,
-      entry.notes
-    );
+    const entryToStore = {
+      site_url: entry.site_url,
+      site_name: entry.site_name,
+      username: entry.username,
+      password_encrypted: encryptedPassword,
+      created_at: now,
+      modified_at: now,
+      notes: entry.notes
+    };
     
-    return result.lastInsertRowid as number;
+    return await executeTransaction<IDBValidKey>(
+      PASSWORDS_STORE,
+      'readwrite',
+      (store) => store.add(entryToStore)
+    ) as number;
   },
   
   // Get all password entries
-  getAll: (masterKey: string): PasswordEntry[] => {
-    const stmt = db.prepare('SELECT * FROM passwords ORDER BY site_name');
-    const rows = stmt.all() as Array<any>;
+  getAll: async (masterKey: string): Promise<PasswordEntry[]> => {
+    const rows = await executeTransaction<any[]>(
+      PASSWORDS_STORE,
+      'readonly',
+      (store) => store.getAll()
+    );
     
     return rows.map(row => ({
       id: row.id,
@@ -137,9 +177,12 @@ export const passwordsDB = {
   },
   
   // Get a specific password entry
-  get: (id: number, masterKey: string): PasswordEntry | null => {
-    const stmt = db.prepare('SELECT * FROM passwords WHERE id = ?');
-    const row = stmt.get(id) as any;
+  get: async (id: number, masterKey: string): Promise<PasswordEntry | null> => {
+    const row = await executeTransaction<any>(
+      PASSWORDS_STORE,
+      'readonly',
+      (store) => store.get(id)
+    );
     
     if (!row) return null;
     
@@ -156,62 +199,74 @@ export const passwordsDB = {
   },
   
   // Update a password entry
-  update: (entry: PasswordEntry, masterKey: string): boolean => {
-    const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      UPDATE passwords 
-      SET site_url = ?, site_name = ?, username = ?, 
-          password_encrypted = ?, modified_at = ?, notes = ?
-      WHERE id = ?
-    `);
+  update: async (entry: PasswordEntry, masterKey: string): Promise<boolean> => {
+    const id = entry.id;
+    if (!id) return false;
     
-    const encryptedPassword = encryptData(entry.password, masterKey);
-    
-    const result = stmt.run(
-      entry.site_url,
-      entry.site_name,
-      entry.username,
-      encryptedPassword,
-      now,
-      entry.notes,
-      entry.id
+    const existingEntry = await executeTransaction<any>(
+      PASSWORDS_STORE,
+      'readonly',
+      (store) => store.get(id)
     );
     
-    return result.changes > 0;
+    if (!existingEntry) return false;
+    
+    const now = new Date().toISOString();
+    const encryptedPassword = encryptData(entry.password, masterKey);
+    
+    const updatedEntry = {
+      ...existingEntry,
+      site_url: entry.site_url,
+      site_name: entry.site_name,
+      username: entry.username,
+      password_encrypted: encryptedPassword,
+      modified_at: now,
+      notes: entry.notes
+    };
+    
+    await executeTransaction(
+      PASSWORDS_STORE,
+      'readwrite',
+      (store) => store.put(updatedEntry)
+    );
+    
+    return true;
   },
   
   // Delete a password entry
-  delete: (id: number): boolean => {
-    const stmt = db.prepare('DELETE FROM passwords WHERE id = ?');
-    const result = stmt.run(id);
-    return result.changes > 0;
+  delete: async (id: number): Promise<boolean> => {
+    try {
+      await executeTransaction(
+        PASSWORDS_STORE,
+        'readwrite',
+        (store) => store.delete(id)
+      );
+      return true;
+    } catch (error) {
+      console.error('Error deleting password:', error);
+      return false;
+    }
   },
 
   // Search for password entries
-  search: (query: string, masterKey: string): PasswordEntry[] => {
-    const stmt = db.prepare(`
-      SELECT * FROM passwords 
-      WHERE site_name LIKE ? OR site_url LIKE ? OR username LIKE ? OR notes LIKE ?
-    `);
+  search: async (query: string, masterKey: string): Promise<PasswordEntry[]> => {
+    const allEntries = await passwordsDB.getAll(masterKey);
+    const searchLower = query.toLowerCase();
     
-    const searchPattern = `%${query}%`;
-    const rows = stmt.all(
-      searchPattern, 
-      searchPattern, 
-      searchPattern, 
-      searchPattern
-    ) as Array<any>;
-    
-    return rows.map(row => ({
-      id: row.id,
-      site_url: row.site_url,
-      site_name: row.site_name,
-      username: row.username,
-      password: decryptData(row.password_encrypted, masterKey),
-      created_at: row.created_at,
-      modified_at: row.modified_at,
-      notes: row.notes
-    }));
+    return allEntries.filter(entry => 
+      entry.site_name.toLowerCase().includes(searchLower) ||
+      entry.site_url.toLowerCase().includes(searchLower) ||
+      entry.username.toLowerCase().includes(searchLower) ||
+      entry.notes.toLowerCase().includes(searchLower)
+    );
+  }
+};
+
+// Export a mock DB object
+const db = {
+  exec: (sql: string) => {
+    console.log('Mock SQL execution:', sql);
+    return true;
   }
 };
 
